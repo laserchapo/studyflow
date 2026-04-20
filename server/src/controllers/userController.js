@@ -29,6 +29,30 @@ const createUser = async (req, res) => {
   }
 };
 
+const updateUser = async (req, res) => {
+  try {
+    const { name, email, program } = req.body;
+
+    if (!name || !email || !program) {
+      return res.status(400).json({ message: "Name, email, and program are required" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { name, email, program },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update user" });
+  }
+};
+
 const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
@@ -46,5 +70,6 @@ const deleteUser = async (req, res) => {
 module.exports = {
   getUsers,
   createUser,
+  updateUser,
   deleteUser
 };
