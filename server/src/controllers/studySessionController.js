@@ -39,7 +39,23 @@ const createSession = async (req, res) => {
   }
 };
 
+const deleteSession = async (req, res) => {
+  try {
+    const session = await StudySession.findByIdAndDelete(req.params.id);
+
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    res.status(200).json({ message: "Session deleted" });
+  } catch (error) {
+    console.error("DELETE SESSION ERROR:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getSessions,
-  createSession
+  createSession,
+  deleteSession
 };
