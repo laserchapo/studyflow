@@ -1,55 +1,112 @@
 import { useEffect, useState } from "react";
+import { apiDelete, apiGet, apiPost, apiPut } from "./api";
+import Dashboard from "./components/Dashboard";
+import StudySessionForm from "./components/StudySessionForm";
+import StudySessionList from "./components/StudySessionList";
+import "./App.css";
 
 function App() {
   const [users, setUsers] = useState([]);
   const [courses, setCourses] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadData = async () => {
+    try {
+      setError("");
+      const [usersData, coursesData, sessionsData] = await Promise.all([
+        apiGet("/users"),
+        apiGet("/courses"),
+        apiGet("/sessions")
+      ]);
+
+      setUsers(usersData);
+      setCourses(coursesData);
+      setSessions(sessionsData);
+    } catch (err) {
+      setError("Could not load data. Make sure the backend is running.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/users").then(r => r.json()).then(setUsers);
-    fetch("http://localhost:5000/api/courses").then(r => r.json()).then(setCourses);
-    fetch("http://localhost:5000/api/sessions").then(r => r.json()).then(setSessions);
+    loadData();
+
+    const intervalId = setInterval(() => {
+      loadData();
+    }, 10000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
+  const handleSubmitSession = async (formData) => {
+    try {
+      if (selectedSession) {
+        await apiPut(`/sessions/${selectedSession._id}`, formData);
+        setSelectedSession(null);
+      } else {
+        await apiPost("/sessions", formData);
+      }
+
+      await loadData();
+    } catch (err) {
+      setError("Could not save study session.");
+    }
+  };
+
+  const handleDeleteSession = async (id) => {
+    const confirmed = window.confirm("Are you sure you want to delete this study session?");
+    if (!confirmed) return;
+
+    try {
+      await apiDelete(`/sessions/${id}`);
+      await loadData();
+    } catch (err) {
+      setError("Could not delete study session.");
+    }
+  };
+
+  const filteredSessions = sessions.filter((session) =>
+    session.topic.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <main style={{ maxWidth: "900px", margin: "0 auto", padding: "32px" }}>
+    <main className="container">
       <h1>StudyFlow</h1>
-      <p>A simple study tracker for students to manage courses and study sessions.</p>
+      <p className="subtitle">A study tracker for managing courses, focus, and study sessions.</p>
 
-      <section>
-        <h2>Users</h2>
-        {users.map(user => (
-          <div key={user._id} style={{ border: "1px solid #777", padding: "12px", marginBottom: "10px" }}>
-            <strong>{user.name}</strong>
-            <p>{user.email}</p>
-            <p>{user.program}</p>
-          </div>
-        ))}
-      </section>
+      {loading && <p>Loading data...</p>}
+      {error && <p className="error">{error}</p>}
 
-      <section>
-        <h2>Courses</h2>
-        {courses.map(course => (
-          <div key={course._id} style={{ border: "1px solid #777", padding: "12px", marginBottom: "10px" }}>
-            <strong>{course.name}</strong>
-            <p>Difficulty: {course.difficultyLevel}/5</p>
-            <p>Exam: {new Date(course.examDate).toLocaleDateString()}</p>
-          </div>
-        ))}
-      </section>
+      {!loading && (
+        <>
+          <Dashboard
+            users={users}
+            courses={courses}
+            sessions={sessions}
+            search={search}
+            setSearch={setSearch}
+          />
 
-      <section>
-        <h2>Study Sessions</h2>
-        {sessions.map(session => (
-          <div key={session._id} style={{ border: "1px solid #777", padding: "12px", marginBottom: "10px" }}>
-            <strong>{session.topic}</strong>
-            <p>Course: {session.courseId?.name}</p>
-            <p>Duration: {session.duration} minutes</p>
-            <p>Focus: {session.focusLevel}/10 | Energy: {session.energyLevel}/10</p>
-            <p>{session.notes}</p>
-          </div>
-        ))}
-      </section>
+          <StudySessionForm
+            users={users}
+            courses={courses}
+            selectedSession={selectedSession}
+            onSubmit={handleSubmitSession}
+            onCancel={() => setSelectedSession(null)}
+          />
+
+          <StudySessionList
+            sessions={filteredSessions}
+            onEdit={setSelectedSession}
+            onDelete={handleDeleteSession}
+          />
+        </>
+      )}
     </main>
   );
 }
